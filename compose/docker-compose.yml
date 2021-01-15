@@ -1,0 +1,77 @@
+version: '3.7'
+services:
+  zookeeper:
+    container_name: zookeeper
+    networks:
+      h.docker-internal:
+        aliases:
+          - zookeeper.h.docker-internal
+    image: "confluentinc/cp-zookeeper:5.3.1"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: "2181"
+      ZOOKEEPER_TICK_TIME: "2000"
+
+  kafka:
+    container_name: kafka
+    networks:
+      h.docker-internal:
+        aliases:
+          - kafka.h.docker-internal
+    image: "confluentinc/cp-kafka:5.3.1"
+    depends_on:
+      - zookeeper
+    ports:
+      - 29092:29092
+    environment:
+      ADV_HOST: "kafka.h.docker-internal"
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper.h.docker-internal:2181"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka.h.docker-internal:9092,LISTENER_DOCKER_EXTERNAL://localhost:29092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,LISTENER_DOCKER_EXTERNAL:PLAINTEXT"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9092"]
+      interval: 20s
+      timeout: 5s
+      retries: 8
+
+  schema-registry:
+    container_name: schema-registry
+    networks:
+      h.docker-internal:
+        aliases:
+          - schema-registry.h.docker-internal
+          - kafka-schema-registry.tpa.svc.nais.local
+    image: "confluentinc/cp-schema-registry:5.3.1"
+    depends_on:
+      - kafka
+      - zookeeper
+    environment:
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "PLAINTEXT://kafka.h.docker-internal:9092"
+      SCHEMA_REGISTRY_HOST_NAME: "schema-registry.h.docker-internal"
+      SCHEMA_REGISTRY_LISTENERS: "http://0.0.0.0:8081"
+
+  # This "container" is a workaround to pre-create topics
+  kafka-setup:
+    image: "confluentinc/cp-kafka:5.3.1"
+    container_name: kafka-setup
+    networks:
+      h.docker-internal:
+        aliases:
+          - kafka-setup.h.docker-internal
+    depends_on:
+      - kafka
+      - zookeeper
+    command: "bash -c 'echo Waiting for Kafka to be ready... && \
+                       cub kafka-ready -b kafka.h.docker-internal:9092 1 20 && \
+                       sleep 20 && \
+                       kafka-topics --create --if-not-exists --zookeeper zookeeper.h.docker-internal:2181 --partitions 1 --replication-factor 1 --topic h'"
+    environment:
+      # The following settings are listed here only to satisfy the image's requirements.
+      # We override the image's `command` anyways, hence this container will not start a broker.
+      KAFKA_BROKER_ID: ignored
+      KAFKA_ZOOKEEPER_CONNECT: ignored
+
+networks:
+  h.docker-internal:
+    name: h.docker-internal
