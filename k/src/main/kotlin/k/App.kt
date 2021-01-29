@@ -15,8 +15,10 @@ fun main(args: Array<String>) {
 
     val producer = createProducer<String, String>(env)
 
+    log.info("Sending ${env.messages} messages")
+
     val start = System.currentTimeMillis()
-    repeat(10_000) {
+    repeat(env.messages) {
         try {
             producer.send(ProducerRecord(
                 env.topic,
@@ -28,5 +30,5 @@ fun main(args: Array<String>) {
             throw e
         }
     }
-    log.info("Time elapsed in produce() is: ${(System.currentTimeMillis() - start)/1000.0}")
+    log.info("Time elapsed in produce() is: ${(System.currentTimeMillis() - start)/1000.0}s")
 }

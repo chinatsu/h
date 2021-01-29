@@ -3,7 +3,8 @@ package k
 data class Environment (
     val brokers: String = getEnvVar("BROKERS", "localhost:29092"),
     val topic: String = getEnvVar("TOPIC", "h"),
-    val kafkaSecurityProtocol: String = getEnvVar("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT")
+    val kafkaSecurityProtocol: String = getEnvVar("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT"),
+    val messages: Int = getEnvVar("MESSAGES", "10000").toInt()
 )
 
 

@@ -14,7 +14,7 @@ use logger::setup_logger;
 use environment::Environment;
 
 async fn produce(producer: &FutureProducer, env: &Environment) {
-    for i in 0..1_000 {
+    for i in 0..env.messages {
         let payload = format!("Message {}", i);
         let key = format!("Key {}", i);
         async move {
@@ -48,10 +48,14 @@ async fn main() {
         .set("enable.idempotence", "true")
         .set("retries", "100000")
         .set("max.in.flight", "1")
+        .set("queue.buffering.max.ms", "0")
+        .set("batch.num.messages", "10000")
+        .set("queue.buffering.backpressure.threshold", "1")
         .set("acks", "-1")
         .create()
         .expect("Producer creation error");
 
+    info!("Sending {} messages", env.messages);
     let start = Instant::now();
     produce(producer, &env).await;
     let duration = start.elapsed();
