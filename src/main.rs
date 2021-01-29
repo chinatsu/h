@@ -1,6 +1,6 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use log::info;
+use log::{info, debug, error};
 
 use rdkafka::util::get_rdkafka_version;
 use rdkafka::config::ClientConfig;
@@ -13,30 +13,23 @@ mod environment;
 use logger::setup_logger;
 use environment::Environment;
 
-async fn produce(env: &Environment) {
-    let producer: &FutureProducer = &ClientConfig::new()
-        .set("bootstrap.servers", &env.brokers)
-        .set("message.timeout.ms", "5000")
-        .create()
-        .expect("Producer creation error");
-
-    let futures = (0..3)
-        .map(|i| async move {
-            let delivery_status = producer
-                .send(
+async fn produce(producer: &FutureProducer, env: &Environment) {
+    for i in 0..1_000 {
+        let payload = format!("Message {}", i);
+        let key = format!("Key {}", i);
+        async move {
+            let delivery_status = producer.send(
                     FutureRecord::to(&env.topic)
-                        .payload(&format!("Message {}", i))
-                        .key(&format!("Key {}", i))
+                        .payload(&payload)
+                        .key(&key)
                         .headers(OwnedHeaders::new().add("header_key", "header_value")),
                     Duration::from_secs(0)
-                ).await;
-            info!("Delivery status for message {} received", i);
-            delivery_status
-        })
-        .collect::<Vec<_>>();
-
-    for future in futures {
-        info!("Future completed. Result: {:?}", future.await);
+                );
+            match delivery_status.await {
+                Ok(delivery) => debug!("Sent: {:?}", delivery),
+                Err((e, _)) => error!("{:?}", e)
+            }
+        }.await;
     }
 }
 
@@ -49,5 +42,18 @@ async fn main() {
     let (version_n, version_s) = get_rdkafka_version();
     info!("rd_kafka_version: 0x{:08x}, {}", version_n, version_s);
 
-    produce(&env).await;
+    let producer: &FutureProducer = &ClientConfig::new()
+        .set("bootstrap.servers", &env.brokers)
+        .set("message.timeout.ms", "15000")
+        .set("enable.idempotence", "true")
+        .set("retries", "100000")
+        .set("max.in.flight", "1")
+        .set("acks", "-1")
+        .create()
+        .expect("Producer creation error");
+
+    let start = Instant::now();
+    produce(producer, &env).await;
+    let duration = start.elapsed();
+    info!("Time elapsed in produce() is: {:?}", duration);
 }

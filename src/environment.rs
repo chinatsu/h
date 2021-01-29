@@ -9,7 +9,7 @@ pub struct Environment {
 impl Environment {
     pub fn new() -> Environment {
         Environment {
-            log_conf: env::var("LOG_CONF").unwrap_or("rdkafka=warn".to_string()),
+            log_conf: env::var("LOG_CONF").unwrap_or("info".to_string()),
             brokers: env::var("BROKERS").unwrap_or("localhost:29092".to_string()),
             topic: env::var("TOPIC").unwrap_or("h".to_string())
         }
